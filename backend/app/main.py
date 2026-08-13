@@ -16,7 +16,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "browser": "playwright-chromium"}
+    return {"status": "ok", "browser": "playwright-system-chrome", "visible": True}
 
 
 @app.post("/api/quotes/{provider_id}", response_model=QuoteResponse)

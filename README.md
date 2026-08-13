@@ -47,6 +47,40 @@ npm ci
 
 Use `npm install` instead only when intentionally updating dependencies.
 
+### One-command Windows deployment
+
+From File Explorer, double-click `deploy-windows.cmd`, or run:
+
+```powershell
+.\deploy-windows.cmd
+```
+
+The launcher installs dependencies, creates the Python environment, installs Playwright Chromium, validates the project, builds the frontend, starts both services, performs health checks, records logs, and opens the application.
+
+Stop both services with:
+
+```powershell
+.\stop-windows.cmd
+```
+
+Common options can be passed through the command file:
+
+```powershell
+# Faster development mode
+.\deploy-windows.cmd -Mode Development
+
+# Do not reinstall dependencies
+.\deploy-windows.cmd -SkipInstall
+
+# Use different ports without opening a browser
+.\deploy-windows.cmd -FrontendPort 3001 -BackendPort 8011 -NoBrowser
+
+# Run the Rates.ca diagnostic browser invisibly
+.\deploy-windows.cmd -VisibleChrome `$false -ChromeHoldSeconds 0
+```
+
+Runtime records and service logs are written under `work\windows-deployment`.
+
 ## 2. Start the Python Quote Collector
 
 Create and activate an isolated Python environment on Windows:

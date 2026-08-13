@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from datetime import datetime, timezone
 
@@ -28,32 +29,56 @@ class RatesCaProvider(QuoteProvider):
         captured = datetime.now(timezone.utc)
         body = ""
         final_url = SOURCE_URL
+        response_status: int | None = None
+        page_title = ""
+        visible = os.getenv("RATES_BROWSER_VISIBLE", "true").lower() in {"1", "true", "yes"}
+        hold_seconds = max(0, min(int(os.getenv("RATES_BROWSER_HOLD_SECONDS", "60")), 600))
         try:
             async with async_playwright() as playwright:
-                browser = await playwright.chromium.launch(headless=True)
-                page = await browser.new_page(locale="en-CA", viewport={"width": 1440, "height": 1100})
-                await page.goto(SOURCE_URL, wait_until="domcontentloaded", timeout=45_000)
+                launch_options = {"headless": not visible}
+                if visible:
+                    launch_options["channel"] = "chrome"
+                    launch_options["slow_mo"] = 150
+                    launch_options["args"] = ["--start-maximized", "--new-window"]
+                browser = await playwright.chromium.launch(**launch_options)
+                page = await browser.new_page(locale="en-CA", viewport=None)
+                await page.bring_to_front()
+                response = await page.goto(SOURCE_URL, wait_until="domcontentloaded", timeout=45_000)
+                response_status = response.status if response else None
                 try:
                     await page.wait_for_load_state("networkidle", timeout=12_000)
                 except PlaywrightTimeoutError:
                     pass
                 body = await page.locator("body").inner_text(timeout=15_000)
+                page_title = await page.title()
+                await page.evaluate("document.title = '[RATEWISE TEST] ' + document.title")
+                await page.bring_to_front()
                 final_url = page.url
+                if visible and hold_seconds:
+                    await page.wait_for_timeout(hold_seconds * 1000)
                 await browser.close()
         except Exception as exc:
-            return [self._blocker(captured, f"JavaScript page collection failed: {type(exc).__name__}")]
+            return [self._blocker(
+                captured,
+                f"Local JavaScript browser failure: {type(exc).__name__}: {str(exc)[:240]}",
+            )]
 
         if "Attention Required!" in body or "you have been blocked" in body.lower():
             ray_match = re.search(r"Cloudflare Ray ID:\s*([a-z0-9]+)", body, re.IGNORECASE)
             ray = f" Ray ID: {ray_match.group(1)}." if ray_match else ""
             return [self._blocker(
                 captured,
-                "Rates.ca access control blocked the automated browser; no bypass was attempted." + ray,
+                "Rates.ca Cloudflare access control blocked the automated browser; "
+                f"HTTP {response_status or 'unknown'}, title '{page_title}'. No bypass was attempted." + ray,
             )]
 
         samples = self._parse_samples(body)
         if not samples:
-            return [self._blocker(captured, "No public recent-quote cards were found; the page structure may have changed.")]
+            return [self._blocker(
+                captured,
+                f"No public recent-quote cards were found. HTTP {response_status or 'unknown'}, "
+                f"title '{page_title}', final URL '{final_url}'. The page structure may have changed.",
+            )]
 
         ranked = sorted(samples, key=lambda sample: self._relevance(sample, request), reverse=True)[:6]
         return [self._to_result(sample, request, captured, final_url, index) for index, sample in enumerate(ranked)]
