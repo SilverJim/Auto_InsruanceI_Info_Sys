@@ -1,17 +1,18 @@
 # Ratewise — Ontario Auto Insurance Comparison
 
-Ratewise is a coverage-first Ontario private-passenger auto insurance comparison prototype. It collects one accurate user profile, returns normalized demo quotes, distinguishes comparable quotes from estimates, and displays provider verification and evidence metadata.
+Ratewise is a coverage-first Ontario private-passenger auto insurance comparison prototype. It collects a search profile, calls a local Python collector, and presents evidence-backed route outcomes without crossing purchase boundaries.
 
-> **Demo notice:** All displayed providers and premiums are fictional. The current quote provider runs locally and does not send form information to an insurer, broker, or aggregator.
+> **Safety notice:** The current Rates.ca adapter reads only public, published recent-quote evidence. It does not submit the entered identity, request a callback, accept declarations, bypass access controls, or express purchase intent. Public samples are not applicant-specific quotes.
 
 ## Current Features
 
 - Five-step driver, vehicle, driving-history, coverage, and consent intake
 - Responsive desktop and mobile experience
-- Comparable quote, non-comparable quote, and estimate-only outcomes
+- Public sample, blocked, and unresolved route outcomes
 - Coverage differences, provider identity, evidence, and confidence display
 - Coverage ledger with market-completion metrics
-- Replaceable `QuoteProvider` adapter in `app/services/quotes.ts`
+- Live Python/Playwright Rates.ca public-evidence collector
+- Replaceable frontend and Python `QuoteProvider` adapter contracts
 
 ## Prerequisites
 
@@ -46,7 +47,23 @@ npm ci
 
 Use `npm install` instead only when intentionally updating dependencies.
 
-## 2. Run the Development Server
+## 2. Start the Python Quote Collector
+
+Create and activate an isolated Python environment on Windows:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+python -m playwright install chromium
+python -m uvicorn backend.app.main:app --reload --port 8010
+```
+
+The API health endpoint is `http://localhost:8010/health`. Keep this terminal open. The Rates.ca adapter executes JavaScript with Playwright Chromium and reads public recent-quote evidence only. It does not submit an invented identity, request a callback, accept declarations, bypass access controls, or express purchase intent.
+
+Rates.ca may block automated browsers with Cloudflare. When that happens, the API returns an evidence-backed `blocked` result; it does not attempt to evade the control or substitute fictional rates.
+
+## 3. Run the Development Server
 
 Start the development server:
 
@@ -70,12 +87,13 @@ npm run dev -- --port 3001
 
 Then open `http://localhost:3001/`.
 
-## 3. Validate the Application
+## 4. Validate the Application
 
 Run the code-quality checks:
 
 ```bash
 npm run lint
+.\.venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 Create a production build:
@@ -86,7 +104,7 @@ npm run build
 
 The build must finish successfully before deployment. The generated deployment files are written to `dist/` and should not be edited manually.
 
-## 4. Run the Production Build Locally
+## 5. Run the Production Build Locally
 
 After `npm run build` succeeds, start the production server:
 
@@ -98,9 +116,11 @@ Open the URL printed in the terminal, normally `http://localhost:3000/`. This mo
 
 Stop the production server with `Ctrl+C`.
 
-## 5. Deploy Privately with OpenAI Sites
+## 6. Deploy Privately with OpenAI Sites
 
 This repository is configured for OpenAI Sites through `.openai/hosting.json`. The existing Sites project should be reused; do not create another project for routine updates.
+
+The Python/Playwright collector is a separate local service and is not hosted by the current Sites deployment. A production release of the live collector requires a Python-capable server or container and an explicit `NEXT_PUBLIC_QUOTE_API_URL` pointing to that HTTPS API. Until then, use the two-process local setup above.
 
 ### Deploy from Codex
 

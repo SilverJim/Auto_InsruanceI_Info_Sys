@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    ".venv/**",
+    ".pytest_cache/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,
